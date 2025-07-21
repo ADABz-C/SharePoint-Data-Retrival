@@ -1,0 +1,36 @@
+using Microsoft.Identity.Client;
+using Microsoft.SharePoint.Client;
+using System;
+using System.Net.Http;
+using System.Net.Security;
+using System.Threading.Tasks;
+//Console.WriteLine("Hello, World!");
+namespace SPRead
+{
+    class Program
+    {
+        static async Task Main(string[] args)
+        {
+            string siteUrl = "https://amatrol.sharepoint.com/sites/testAPI2"; //Replace with your SharePoint site URL
+            string clientId = "a622dd6f-3148-4a91-b9fe-ab1bfac4c5cf"; //Replace with your client ID
+            string tenantId = "d624c2a9-eee5-44f1-bf44-0c840f04e683"; //Replace with your tenant ID
+            string clientSecret = "Input"; //Replace with your client secret Value 
+            var app = ConfidentialClientApplicationBuilder.Create(clientId)
+                .WithTenantId(tenantId)
+                .WithClientSecret(clientSecret)
+                .Build();
+            var authResult = await app.AcquireTokenForClient(new[] { "https://amatrol.sharepoint.com/.default" }).ExecuteAsync(); // Replace with your scope & SharePoint site URL
+            using (var context = new ClientContext(siteUrl))
+            {
+                context.ExecutingWebRequest += (s, e) =>
+                {
+                    e.WebRequestExecutor.RequestHeaders["Authorization"] = "Bearer " + authResult.AccessToken;
+                };
+                Web web = context.Web;
+                context.Load(web);
+                await context.ExecuteQueryAsync();
+                Console.WriteLine("Web Title: " + web.Title);
+            }
+        }
+    }
+}
