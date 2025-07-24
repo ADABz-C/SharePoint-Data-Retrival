@@ -1,0 +1,74 @@
+// See https://aka.ms/new-console-template for more information
+
+using Azure.Identity;
+using Microsoft.Graph;
+using Microsoft.Graph.Models;
+using System;
+using System.Threading.Tasks;
+
+class Program
+{
+    static async Task Main(string[] args)
+    {
+        var tenantId = "d624c2a9-eee5-44f1-bf44-0c840f04e683"; //Replace with yours
+        var clientId = "a622dd6f-3148-4a91-b9fe-ab1bfac4c5cf"; //Replace with yours
+        var clientSecret = "Input";
+
+        // Set up Graph client with credentials
+        var clientSecretCredential = new ClientSecretCredential(
+            tenantId, clientId, clientSecret
+        );
+
+        var graphClient = new GraphServiceClient(clientSecretCredential, new[] { "https://graph.microsoft.com/.default" });
+
+        // STEP 1: Get the Site ID (use search instead of GetByPath)
+        var sites = await graphClient.Sites
+            .Request()
+            .Filter("hostname eq 'amatrol.sharepoint.com' and displayName eq 'testAPI2'")
+            .GetAsync();
+
+        var site = sites?.Value?.FirstOrDefault();
+        if (site == null)
+        {
+            Console.WriteLine("Site not found.");
+            return;
+        }
+        Console.WriteLine("Site ID: " + site.Id);
+
+        // STEP 2: Read List Items
+        var list = await graphClient.Sites[site.Id].Lists["YourListName"].GetAsync();
+
+        var items = await graphClient.Sites[site.Id].Lists[list.Id].Items.GetAsync(config =>
+        {
+            config.QueryParameters.Expand = new[] { "fields" };
+        });
+
+
+        Console.WriteLine("\n--- List Items ---");
+        foreach (var item in items)
+        {
+            var title = item.Fields?.AdditionalData != null && item.Fields.AdditionalData.ContainsKey("Title")
+                ? item.Fields.AdditionalData["Title"]?.ToString()
+                : "(no title)";
+            Console.WriteLine($"- Title: {title}");
+        }
+
+        // STEP 3: Add New Item
+        Console.Write("\nEnter new title: ");
+        var newTitle = Console.ReadLine() ?? string.Empty;
+
+        await graphClient.Sites[site.Id].Lists[list.Id].Items.PostAsync(new ListItem
+        {
+            Fields = new FieldValueSet
+            {
+                AdditionalData = new Dictionary<string, object>
+                {
+                    { "Title", newTitle }
+                }
+            }
+        });
+
+
+        Console.WriteLine("Item added successfully.");
+    }
+}
