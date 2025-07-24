@@ -1,0 +1,53 @@
+using System;
+using System.Threading.Tasks;
+using Microsoft.Identity.Client;
+using Microsoft.SharePoint.Client;
+
+class Program
+{
+    static async Task Main(string[] args)
+    {
+        string clientId = "a622dd6f-3148-4a91-b9fe-ab1bfac4c5cf";
+        string tenantId = "d624c2a9-eee5-44f1-bf44-0c840f04e683";
+        string siteUrl = "https://amatrol.sharepoint.com/sites/testAPI2";
+
+        string[] scopes = new string[] { "https://amatrol.sharepoint.com/.default", "Sites.Read.All" };
+
+        var pca = PublicClientApplicationBuilder.Create(clientId)
+            .WithTenantId(tenantId)
+            .WithRedirectUri("http://localhost")
+            .Build();
+
+        var accounts = await pca.GetAccountsAsync();
+        AuthenticationResult result = null;
+
+        try
+        {
+            result = await pca.AcquireTokenSilent(scopes, accounts.FirstOrDefault())
+                .ExecuteAsync();
+        }
+        catch (MsalUiRequiredException)
+        {
+            result = await pca.AcquireTokenInteractive(scopes)
+                .WithPrompt(Prompt.SelectAccount)
+                .ExecuteAsync();
+        }
+
+        Console.WriteLine("Access token acquired.");
+
+        // Use token in CSOM
+        using (var ctx = new ClientContext(siteUrl))
+        {
+            ctx.ExecutingWebRequest += (sender, e) =>
+            {
+                e.WebRequestExecutor.RequestHeaders["Authorization"] = "Bearer " + result.AccessToken;
+            };
+
+            Web web = ctx.Web;
+            ctx.Load(web);
+            ctx.ExecuteQuery();
+
+            Console.WriteLine("Site title: " + web.Title);
+        }
+    }
+}
